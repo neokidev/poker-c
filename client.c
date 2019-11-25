@@ -65,26 +65,34 @@ int main()
     }
 
     /* プレイヤー待機処理 */
-    /*
     print_flag = false;
     for (;;) {
-        strcpy(buffer, "0");
-        exec_write(sock_fd, buffer, strlen(buffer));
+        strcpy(buffer, "0\0");
+        exec_write(sock_fd, buffer, strlen(buffer) + 1);
 
         nbytes = exec_read(sock_fd, buffer, sizeof(buffer) - 1);
         flag = buffer[0];
 
         if (flag == '0')
         {
-            printf("%s", &buffer[1]);
-            print_flag = true;
+            if (!print_flag) {
+                printf("%s", &buffer[1]);
+                print_flag = true;
+            }
         }
         else if (flag == '1')
         {
             printf("%s", &buffer[1]);
             break;
         }
-    }*/
+    }
+
+    /* ちょっとした時間稼ぎ */
+    for (int j = 0; j < 100000; j++) {
+        for (int k = 0; k < 10000; k++) {
+            int l = 0;
+        }
+    }
 }
 
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size)

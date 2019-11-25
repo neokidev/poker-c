@@ -144,8 +144,7 @@ int main ()
                 printf("  Error! revents = %d\n", fds[i].revents);
                 end_server = true;
                 break;
-            }
-            */
+            }*/
 
             if (fds[i].revents & POLLIN)
             {
@@ -211,24 +210,24 @@ int main ()
                             pl[i].status = WAIT_PLAYER;
                             break;
                         case WAIT_PLAYER:
-                            break;
+                            nbytes = exec_read(fds[i].fd, pl[nfds].name, sizeof(pl[nfds].name));
+                            printf("  %d bytes received\n", nbytes);
                             flag = false;
-                            /*
-                            for (int j = 0; j < MAX_NUM_PLAYERS; j++) {
-                                if (pl[j].status == WAIT_PLAYER)
+                            for (int j = 1; j <= MAX_NUM_PLAYERS; j++) {
+                                if (pl[j].status == REGIST_NAME)
                                     flag = true;
-                            }*/
+                            }
 
-                            if (nfds <= MAX_NUM_PLAYERS - 1) {
+                            if (nfds <= MAX_NUM_PLAYERS || flag) {
                                 strcpy(buffer, "0プレイヤーが集まるのを待っています...\n\0");
-                                exec_write(conn_fd, buffer, strlen(buffer) + 1);
+                                exec_write(fds[i].fd, buffer, strlen(buffer) + 1);
                             }
                             else
                             {
                                 strcpy(buffer, "1プレイヤーが揃いました！\n\0");
-                                exec_write(conn_fd, buffer, strlen(buffer) + 1);
+                                exec_write(fds[i].fd, buffer, strlen(buffer) + 1);
 
-                                // pl[i].status = GAME_PREPARE;
+                                pl[i].status = GAME_PREPARE;
                             }
                             break;
                     }
