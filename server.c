@@ -178,7 +178,7 @@ int main ()
                             pl[nfds].hand[i] = -1;
                             pl[nfds].changed_card[i] = false;
                         }
-                        inet_ntop(AF_INET, &client_addr.sin_addr, pl[nfds-1].address, INET_ADDRSTRLEN);
+                        inet_ntop(AF_INET, &client_addr.sin_addr, pl[nfds].address, INET_ADDRSTRLEN);
                         pl[nfds].port = ntohs(client_addr.sin_port);
                         pl[nfds].status = REGIST_NAME;
 
@@ -203,9 +203,9 @@ int main ()
                     switch (pl[i].status)
                     {
                         case REGIST_NAME:
-                            nbytes = exec_read(fds[i].fd, pl[nfds].name, sizeof(pl[nfds].name) - 1);
+                            nbytes = exec_read(fds[i].fd, pl[nfds].name, sizeof(pl[nfds].name));
                             printf("  %d bytes received\n", nbytes);
-                            snprintf(buffer, sizeof(buffer), "ポーカーの世界へようこそ！%s さん！\n", pl[nfds].name);
+                            snprintf(buffer, sizeof(buffer), "ポーカーの世界へようこそ！%s さん！\n\0", pl[nfds].name);
                             exec_write(fds[i].fd, buffer, strlen(buffer) + 1);
 
                             pl[i].status = WAIT_PLAYER;
@@ -261,7 +261,6 @@ int main ()
             }
         }
         */
-       //sleep(1);
     }
 
     for (i = 0; i < nfds; i++)
@@ -325,9 +324,9 @@ int exec_read(int fd, char *buffer, unsigned long buffer_size)
     return nbytes;
 }
 
-void exec_write(int sock_fd, char *buffer, size_t len)
+void exec_write(int fd, char *buffer, size_t len)
 {
-    if (write(sock_fd, buffer, len) < 0)
+    if (write(fd, buffer, len) < 0)
     {
         perror("  write() failed");
         exit(1);

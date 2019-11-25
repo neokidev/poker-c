@@ -45,7 +45,7 @@ int main()
     }
 
     /* 名前登録処理 */
-    nbytes = exec_read(sock_fd, buffer, sizeof(buffer) - 1);
+    nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
     flag = buffer[0];
 
     if (flag == '0')
@@ -56,7 +56,7 @@ int main()
         sscanf(stdin_buffer, "%s", buffer);
         exec_write(sock_fd, buffer, strlen(buffer) + 1);
 
-        nbytes = exec_read(sock_fd, buffer, sizeof(buffer) - 1);
+        nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
         printf("%s", buffer);
     }
     else if (flag == '1')
