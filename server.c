@@ -63,10 +63,12 @@ int main ()
     char   *addr;
     socklen_t addrlen;
     struct pollfd fds[MAX_NUM_PLAYERS + 1];
+    int    fd_idx;
     int    nfds = 1, cur_nfds = 0;
     int    i, j;
 
-    struct player pl[MAX_NUM_PLAYERS + 1];
+    struct player pls[MAX_NUM_PLAYERS];
+    int    pl_idx;
     struct player *pl_in_turn_p, *pl_next_turn_p;
     int    deck[NUM_CARDS];
     int    next_draw_idx;
@@ -133,24 +135,26 @@ int main ()
         }
 
         cur_nfds = nfds;
-        for (i = 0; i < cur_nfds; i++)
+        for (fd_idx = 0; fd_idx < cur_nfds; fd_idx++)
         {
-            if (fds[i].revents == 0)
+            if (fds[fd_idx].revents == 0)
                 continue;
 
             /*
-            if (fds[i].revents != POLLIN)
+            if (fds[fd_idx].revents != POLLIN)
             {
-                printf("  Error! revents = %d\n", fds[i].revents);
+                printf("  Error! revents = %d\n", fds[fd_idx].revents);
                 end_server = true;
                 break;
             }*/
 
-            if (fds[i].revents & POLLIN)
+            if (fds[fd_idx].revents & POLLIN)
             {
-                if (fds[i].fd == listen_fd)
+                if (fds[fd_idx].fd == listen_fd)
                 {
                     printf("  Listening socket is readable\n");
+
+                    pl_idx = nfds - 1;
 
                     addrlen = sizeof(client_addr);
                     conn_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &addrlen);
@@ -171,17 +175,17 @@ int main ()
                         fds[nfds].fd = conn_fd;
                         fds[nfds].events = POLLIN;
 
-                        pl[nfds].money = 10000;
+                        pls[pl_idx].money = 10000;
                         for (i = 0; i < NUM_HAND_CARDS; i++)
                         {
-                            pl[nfds].hand[i] = -1;
-                            pl[nfds].changed_card[i] = false;
+                            pls[pl_idx].hand[i] = -1;
+                            pls[pl_idx].changed_card[i] = false;
                         }
-                        inet_ntop(AF_INET, &client_addr.sin_addr, pl[nfds].address, INET_ADDRSTRLEN);
-                        pl[nfds].port = ntohs(client_addr.sin_port);
-                        pl[nfds].status = REGIST_NAME;
+                        inet_ntop(AF_INET, &client_addr.sin_addr, pls[pl_idx].address, INET_ADDRSTRLEN);
+                        pls[pl_idx].port = ntohs(client_addr.sin_port);
+                        pls[pl_idx].status = REGIST_NAME;
 
-                        printf("  New player: %s:%d\n", pl[nfds].address, pl[nfds].port);
+                        printf("  New player: %s:%d\n", pls[pl_idx].address, pls[pl_idx].port);
 
                         strcpy(buffer, "0あなたの名前を入力してください\n> \0");
                         exec_write(fds[nfds].fd, buffer, strlen(buffer) + 1);
@@ -196,38 +200,45 @@ int main ()
                 }
                 else
                 {
-                    printf("  Descriptor %d is readable\n", fds[i].fd);
+                    printf("  Descriptor %d is readable\n", fds[fd_idx].fd);
+
+                    pl_idx = fd_idx - 1;
 
                     // close_conn = false;
-                    switch (pl[i].status)
+                    switch (pls[pl_idx].status)
                     {
                         case REGIST_NAME:
-                            nbytes = exec_read(fds[i].fd, pl[nfds].name, sizeof(pl[nfds].name));
+                            nbytes = exec_read(fds[fd_idx].fd, pls[pl_idx].name, sizeof(pls[pl_idx].name));
                             printf("  %d bytes received\n", nbytes);
-                            snprintf(buffer, sizeof(buffer), "ポーカーの世界へようこそ！%s さん！\n\0", pl[nfds].name);
-                            exec_write(fds[i].fd, buffer, strlen(buffer) + 1);
+                            snprintf(buffer, sizeof(buffer), "ポーカーの世界へようこそ！%s さん！\n\0", pls[pl_idx].name);
+                            exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
-                            pl[i].status = WAIT_PLAYER;
+                            pls[pl_idx].status = WAIT_PLAYER;
                             break;
                         case WAIT_PLAYER:
-                            nbytes = exec_read(fds[i].fd, pl[nfds].name, sizeof(pl[nfds].name));
+                            nbytes = exec_read(fds[fd_idx].fd, pls[pl_idx].name, sizeof(pls[pl_idx].name));
                             printf("  %d bytes received\n", nbytes);
                             flag = false;
-                            for (int j = 1; j <= MAX_NUM_PLAYERS; j++) {
-                                if (pl[j].status == REGIST_NAME)
+                            for (int j = 0; j < MAX_NUM_PLAYERS; j++)
+                            {
+                                if (pls[j].status == REGIST_NAME)
+                                {
                                     flag = true;
+                                    break;
+                                }
                             }
 
-                            if (nfds <= MAX_NUM_PLAYERS || flag) {
+                            if (nfds <= MAX_NUM_PLAYERS || flag)
+                            {
                                 strcpy(buffer, "0プレイヤーが集まるのを待っています...\n\0");
-                                exec_write(fds[i].fd, buffer, strlen(buffer) + 1);
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
                             }
                             else
                             {
                                 strcpy(buffer, "1プレイヤーが揃いました！\n\0");
-                                exec_write(fds[i].fd, buffer, strlen(buffer) + 1);
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
-                                pl[i].status = GAME_PREPARE;
+                                pls[pl_idx].status = GAME_PREPARE;
                             }
                             break;
                     }
@@ -235,8 +246,8 @@ int main ()
                     /*
                     if (close_conn)
                     {
-                        close(fds[i].fd);
-                        fds[i].fd = -1;
+                        close(fds[fd_idx].fd);
+                        fds[fd_idx].fd = -1;
                         compress_array = true;
                     }
                     */
@@ -249,7 +260,7 @@ int main ()
             compress_array = false;
             for (i = 0; i < nfds; i++)
             {
-                if (fds[i].fd == -1)
+                if (fds[fd_idx].fd == -1)
                 {
                     for(j = i; j < nfds; j++)
                     {
@@ -264,8 +275,8 @@ int main ()
 
     for (i = 0; i < nfds; i++)
     {
-        if(fds[i].fd >= 0)
-        close(fds[i].fd);
+        if(fds[fd_idx].fd >= 0)
+        close(fds[fd_idx].fd);
     }
     return 0;
 }
