@@ -11,19 +11,11 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
-#define SERVER_ADDR  "127.0.0.1"
-#define SERVER_PORT  30000
-#define MAX_NUM_PLAYERS  3
-// #define NFDS            10
-
-struct player {
-    char name[20];
-    int money;
-    int hand[5];
-    bool changed_card[5];
-    char address[INET_ADDRSTRLEN];
-    unsigned short port;
-};
+#define SERVER_ADDR "127.0.0.1"
+#define SERVER_PORT      30000
+#define MAX_NUM_PLAYERS      3
+#define NUM_HAND_CARDS       5
+#define NUM_CARDS           52
 
 
 enum PlayerStatus {
@@ -40,6 +32,18 @@ enum PlayerStatus {
     GAME_RESULT
 };
 
+struct player {
+    char name[20];
+    int money;
+    int hand[NUM_HAND_CARDS];
+    bool changed_card[NUM_HAND_CARDS];
+    char address[INET_ADDRSTRLEN];
+    unsigned short port;
+    enum PlayerStatus status;
+};
+
+int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
+void exec_write(int sock_fd, char *buffer, size_t len);
 void init_deck(int deck[]);
 void shuffle_deck(int deck[]);
 void print_deck(int deck[]);
@@ -47,22 +51,24 @@ void print_deck(int deck[]);
 int main ()
 {
     int    n, nbytes;
+    bool   flag;
     int    rc, on = 1;
     int    len;
     int    listen_fd = -1, conn_fd = -1;
     int    end_server = false, compress_array = false;
     int    close_conn;
-    char   buffer[80];
+    char   buffer[200];
     struct sockaddr_in server_addr;
     struct sockaddr_in client_addr;
-    char *addr;
+    char   *addr;
     socklen_t addrlen;
     struct pollfd fds[MAX_NUM_PLAYERS + 1];
-    int    nfds = 1, cur_nfds = 0, i, j;
+    int    nfds = 1, cur_nfds = 0;
+    int    i, j;
 
-    struct player pl[MAX_NUM_PLAYERS];
+    struct player pl[MAX_NUM_PLAYERS + 1];
     struct player *pl_in_turn_p, *pl_next_turn_p;
-    int    deck[52];
+    int    deck[NUM_CARDS];
     int    next_draw_idx;
 
 
@@ -129,110 +135,116 @@ int main ()
         cur_nfds = nfds;
         for (i = 0; i < cur_nfds; i++)
         {
-            if(fds[i].revents == 0)
+            if (fds[i].revents == 0)
                 continue;
 
-            if(fds[i].revents != POLLIN)
+            /*
+            if (fds[i].revents != POLLIN)
             {
                 printf("  Error! revents = %d\n", fds[i].revents);
                 end_server = true;
                 break;
             }
+            */
 
-            if (fds[i].fd == listen_fd)
+            if (fds[i].revents & POLLIN)
             {
-                printf("  Listening socket is readable\n");
-
-                addrlen = sizeof(client_addr);
-                conn_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &addrlen);
-                if (conn_fd < 0)
+                if (fds[i].fd == listen_fd)
                 {
-                    if (errno != EWOULDBLOCK)
-                    {
-                        perror("  accept() failed");
-                        end_server = true;
-                    }
-                    break;
-                }
+                    printf("  Listening socket is readable\n");
 
-                printf("  New incoming connection - %d\n", conn_fd);
-
-                fds[nfds].fd = conn_fd;
-                fds[nfds].events = POLLIN;
-
-                strcpy(buffer, "あなたの名前を入力してください\n> ");
-                if (write(fds[nfds].fd, buffer, strlen(buffer)) < 0)
-                {
-                    perror("  write() failed");
-                    close_conn = true;
-                    break;
-                }
-
-                strcpy(pl[nfds-1].name, "Unknown");
-                pl[nfds-1].money = 10000;
-                for (i = 0; i < 5; i++)
-                {
-                    pl[nfds-1].hand[i] = -1;
-                    pl[nfds-1].changed_card[i] = false;
-                }
-
-                inet_ntop(AF_INET, &client_addr.sin_addr, pl[nfds-1].address, INET_ADDRSTRLEN);
-
-                pl[nfds-1].port = ntohs(client_addr.sin_port);
-                printf("name:%s, address:%s, port:%d\n", pl[nfds-1].name, pl[nfds-1].address, pl[nfds-1].port);
-
-                nfds++;
-            }
-            else
-            {
-                printf("  Descriptor %d is readable\n", fds[i].fd);
-
-                close_conn = false;
-
-                for (;;)
-                {
-                    nbytes = read(fds[i].fd, buffer, sizeof(buffer) - 1);
-                    if (nbytes < 0)
+                    addrlen = sizeof(client_addr);
+                    conn_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &addrlen);
+                    if (conn_fd < 0)
                     {
                         if (errno != EWOULDBLOCK)
                         {
-                            perror("  read() failed");
-                            close_conn = true;
+                            perror("  accept() failed");
+                            end_server = true;
                         }
                         break;
                     }
-                    if (nbytes == 0)
-                    {
-                        printf("  Connection closed\n");
-                        close_conn = true;
-                        break;
-                    }
-                    buffer[nbytes] = '\0';
 
-                    printf("  %d bytes received\n", nbytes);
-                    printf("あなたの名前は %s ですね！\n", buffer);
+                    printf("  New incoming connection - %d\n", conn_fd);
+
+                    if (nfds <= MAX_NUM_PLAYERS)
+                    {
+                        fds[nfds].fd = conn_fd;
+                        fds[nfds].events = POLLIN;
+
+                        pl[nfds].money = 10000;
+                        for (i = 0; i < NUM_HAND_CARDS; i++)
+                        {
+                            pl[nfds].hand[i] = -1;
+                            pl[nfds].changed_card[i] = false;
+                        }
+                        inet_ntop(AF_INET, &client_addr.sin_addr, pl[nfds-1].address, INET_ADDRSTRLEN);
+                        pl[nfds].port = ntohs(client_addr.sin_port);
+                        pl[nfds].status = REGIST_NAME;
+
+                        printf("  New player: %s:%d\n", pl[nfds].address, pl[nfds].port);
+
+                        strcpy(buffer, "0あなたの名前を入力してください\n> \0");
+                        exec_write(fds[nfds].fd, buffer, strlen(buffer) + 1);
+                        nfds++;
+                    }
+                    else
+                    {
+                        strcpy(buffer, "1参加人数の上限を超えているので，参加できませんでした\n\0");
+                        exec_write(conn_fd, buffer, strlen(buffer) + 1);
+                        close(conn_fd);
+                    }
+                }
+                else
+                {
+                    printf("  Descriptor %d is readable\n", fds[i].fd);
+
+                    // close_conn = false;
+                    switch (pl[i].status)
+                    {
+                        case REGIST_NAME:
+                            nbytes = exec_read(fds[i].fd, pl[nfds].name, sizeof(pl[nfds].name) - 1);
+                            printf("  %d bytes received\n", nbytes);
+                            snprintf(buffer, sizeof(buffer), "ポーカーの世界へようこそ！%s さん！\n", pl[nfds].name);
+                            exec_write(fds[i].fd, buffer, strlen(buffer) + 1);
+
+                            pl[i].status = WAIT_PLAYER;
+                            break;
+                        case WAIT_PLAYER:
+                            break;
+                            flag = false;
+                            /*
+                            for (int j = 0; j < MAX_NUM_PLAYERS; j++) {
+                                if (pl[j].status == WAIT_PLAYER)
+                                    flag = true;
+                            }*/
+
+                            if (nfds <= MAX_NUM_PLAYERS - 1) {
+                                strcpy(buffer, "0プレイヤーが集まるのを待っています...\n\0");
+                                exec_write(conn_fd, buffer, strlen(buffer) + 1);
+                            }
+                            else
+                            {
+                                strcpy(buffer, "1プレイヤーが揃いました！\n\0");
+                                exec_write(conn_fd, buffer, strlen(buffer) + 1);
+
+                                // pl[i].status = GAME_PREPARE;
+                            }
+                            break;
+                    }
 
                     /*
-                    rc = send(fds[i].fd, buffer, nbytes, 0);
-                    if (rc < 0)
+                    if (close_conn)
                     {
-                        perror("  send() failed");
-                        close_conn = true;
-                        break;
+                        close(fds[i].fd);
+                        fds[i].fd = -1;
+                        compress_array = true;
                     }
                     */
                 }
-
-                if (close_conn)
-                {
-                    close(fds[i].fd);
-                    fds[i].fd = -1;
-                    compress_array = true;
-                }
-
-
             }
         }
+        /*
         if (compress_array)
         {
             compress_array = false;
@@ -248,6 +260,8 @@ int main ()
                 }
             }
         }
+        */
+       //sleep(1);
     }
 
     for (i = 0; i < nfds; i++)
@@ -260,7 +274,7 @@ int main ()
 
 
 void init_deck(int deck[]) {
-    int i, size = 52;
+    int i, size = NUM_CARDS;
     for (i = 0; i < size; i++) {
         deck[i] = i;
     }
@@ -269,9 +283,8 @@ void init_deck(int deck[]) {
 
 void shuffle_deck(int deck[]) {
     int i, j, t;
-    int size = 52;
-    for (i = 0; i < size; i++) {
-        j = rand() % size;
+    for (i = 0; i < NUM_CARDS; i++) {
+        j = rand() % NUM_CARDS;
         t = deck[i];
         deck[i] = deck[j];
         deck[j] = t;
@@ -280,9 +293,43 @@ void shuffle_deck(int deck[]) {
 
 
 void print_deck(int deck[]) {
-    int i, size = 52;
-    for (i = 0; i < size; i++) {
+    int i;
+    for (i = 0; i < NUM_CARDS; i++) {
         printf("%d ", deck[i]);
     }
     printf("\n");
+}
+
+
+int exec_read(int fd, char *buffer, unsigned long buffer_size)
+{
+    int nbytes = read(fd, buffer, buffer_size);
+    if (nbytes < 0)
+    {
+        if (errno != EWOULDBLOCK)
+        {
+            perror("  read() failed");
+            close(fd);
+            exit(1);
+        }
+    }
+
+    if (nbytes == 0)
+    {
+        printf("  Connection closed\n");
+        close(fd);
+    }
+
+    buffer[nbytes] = '\0';
+
+    return nbytes;
+}
+
+void exec_write(int sock_fd, char *buffer, size_t len)
+{
+    if (write(sock_fd, buffer, len) < 0)
+    {
+        perror("  write() failed");
+        exit(1);
+    }
 }
