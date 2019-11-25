@@ -42,11 +42,18 @@ struct player {
     enum PlayerStatus status;
 };
 
+
+struct deck {
+    int cards[NUM_CARDS];
+    int next_draw_idx;
+};
+
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
 void exec_write(int sock_fd, char *buffer, size_t len);
-void init_deck(int deck[]);
-void shuffle_deck(int deck[]);
-void print_deck(int deck[]);
+void draw_cards(int hand[], struct deck *d_p);
+void init_deck(struct deck *d);
+void shuffle_deck(struct deck *d);
+void print_deck(struct deck *d);
 
 int main ()
 {
@@ -69,9 +76,9 @@ int main ()
 
     struct player pls[MAX_NUM_PLAYERS];
     int    pl_idx;
-    struct player *pl_in_turn_p, *pl_next_turn_p;
-    int    deck[NUM_CARDS];
-    int    next_draw_idx;
+    struct player *pl_in_turn_p, *pl_next_turn_p, *pl_dealer_p;
+    struct deck deck1;
+    bool   winners[MAX_NUM_PLAYERS];
 
 
     if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -120,7 +127,7 @@ int main ()
 
     while (end_server == false)
     {
-        printf("Waiting on poll()...\n");
+        // printf("Waiting on poll()...\n");
 
         if ((n = poll(fds, nfds, -1)) < 0)
         {
@@ -176,11 +183,7 @@ int main ()
                         fds[nfds].events = POLLIN;
 
                         pls[pl_idx].money = 10000;
-                        for (i = 0; i < NUM_HAND_CARDS; i++)
-                        {
-                            pls[pl_idx].hand[i] = -1;
-                            pls[pl_idx].changed_card[i] = false;
-                        }
+
                         inet_ntop(AF_INET, &client_addr.sin_addr, pls[pl_idx].address, INET_ADDRSTRLEN);
                         pls[pl_idx].port = ntohs(client_addr.sin_port);
                         pls[pl_idx].status = REGIST_NAME;
@@ -200,26 +203,25 @@ int main ()
                 }
                 else
                 {
-                    printf("  Descriptor %d is readable\n", fds[fd_idx].fd);
+                    // printf("  Descriptor %d is readable\n", fds[fd_idx].fd);
 
                     pl_idx = fd_idx - 1;
 
                     // close_conn = false;
+                    nbytes = exec_read(fds[fd_idx].fd, pls[pl_idx].name, sizeof(pls[pl_idx].name));
+                    // printf("  %d bytes received\n", nbytes);
+
                     switch (pls[pl_idx].status)
                     {
                         case REGIST_NAME:
-                            nbytes = exec_read(fds[fd_idx].fd, pls[pl_idx].name, sizeof(pls[pl_idx].name));
-                            printf("  %d bytes received\n", nbytes);
                             snprintf(buffer, sizeof(buffer), "ポーカーの世界へようこそ！%s さん！\n\0", pls[pl_idx].name);
                             exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
                             pls[pl_idx].status = WAIT_PLAYER;
                             break;
                         case WAIT_PLAYER:
-                            nbytes = exec_read(fds[fd_idx].fd, pls[pl_idx].name, sizeof(pls[pl_idx].name));
-                            printf("  %d bytes received\n", nbytes);
                             flag = false;
-                            for (int j = 0; j < MAX_NUM_PLAYERS; j++)
+                            for (j = 0; j < MAX_NUM_PLAYERS; j++)
                             {
                                 if (pls[j].status == REGIST_NAME)
                                 {
@@ -241,6 +243,58 @@ int main ()
                                 pls[pl_idx].status = GAME_PREPARE;
                             }
                             break;
+                        case GAME_PREPARE:
+                            flag = false;
+                            for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                            {
+                                if (pls[i].status == REGIST_NAME || pls[i].status == WAIT_PLAYER ||
+                                    pls[i].status == GAME_RESULT)
+                                {
+                                    flag = true;
+                                    break;
+                                }
+                            }
+
+                            if (flag)
+                            {
+                                strcpy(buffer, "0\0");
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+                            }
+                            else
+                            {
+                                /* 以下の処理を１回だけ行うための条件 */
+                                if (fd_idx == 1)
+                                {
+                                    pl_in_turn_p = &pls[pl_idx];
+                                    pl_next_turn_p = NULL;
+                                    pl_dealer_p = &pls[MAX_NUM_PLAYERS - 1];
+
+                                    init_deck(&deck1);
+                                    shuffle_deck(&deck1);
+                                    printf("deck: ");
+                                    print_deck(&deck1);
+
+                                    for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                                    {
+                                        printf("player %d hand: ", i + 1);
+                                        draw_cards(pls[i].hand, &deck1);
+
+                                        for (j = 0; j < NUM_HAND_CARDS; j++)
+                                        {
+                                            printf("%d ", pls[i].hand[j]);
+                                            pls[i].changed_card[j] = false;
+                                        }
+                                        printf("\n");
+
+                                        winners[i] = false;
+                                    }
+                                }
+
+                                strcpy(buffer, "1ゲームを開始します！\n\0");
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+
+                                pls[pl_idx].status = GAME_LOOK_FIRST_HAND;
+                            }
                     }
 
                     /*
@@ -282,29 +336,45 @@ int main ()
 }
 
 
-void init_deck(int deck[]) {
-    int i, size = NUM_CARDS;
-    for (i = 0; i < size; i++) {
-        deck[i] = i;
+
+void draw_cards(int hand[], struct deck *d_p)
+{
+    int i;
+    for (i = 0; i < NUM_HAND_CARDS; i++)
+    {
+        hand[i] = d_p->cards[d_p->next_draw_idx];
+        d_p->next_draw_idx++;
     }
 }
 
 
-void shuffle_deck(int deck[]) {
+void init_deck(struct deck *d_p)
+{
+    int i;
+    for (i = 0; i < NUM_CARDS; i++)
+    {
+        d_p->cards[i] = i;
+    }
+    d_p->next_draw_idx = 0;
+}
+
+
+void shuffle_deck(struct deck *d_p)
+{
     int i, j, t;
     for (i = 0; i < NUM_CARDS; i++) {
         j = rand() % NUM_CARDS;
-        t = deck[i];
-        deck[i] = deck[j];
-        deck[j] = t;
+        t = d_p->cards[i];
+        d_p->cards[i] = d_p->cards[j];
+        d_p->cards[j] = t;
     }
 }
 
 
-void print_deck(int deck[]) {
+void print_deck(struct deck *d_p) {
     int i;
     for (i = 0; i < NUM_CARDS; i++) {
-        printf("%d ", deck[i]);
+        printf("%d ", d_p->cards[i]);
     }
     printf("\n");
 }
