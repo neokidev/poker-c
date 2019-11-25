@@ -1,7 +1,7 @@
 # マクロ定義
 GCC = gcc
 FLAGS = -W -Wall
-OBJS = server
+OBJS = server client
 
 # 疑似ターゲットであることを明示
 .PHONY: all clean
@@ -15,4 +15,7 @@ clean:
 
 # 生成規則
 server: server.c
+	$(GCC) $(FLAGS) $+ -o $@
+
+client: client.c
 	$(GCC) $(FLAGS) $+ -o $@

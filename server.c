@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#define SERVER_ADDR  "127.0.0.1"
 #define SERVER_PORT  30000
 #define MAX_NUM_PLAYERS  3
 // #define NFDS            10
@@ -20,7 +21,7 @@ struct player {
     int money;
     int hand[5];
     bool changed_card[5];
-    char *address;
+    char address[INET_ADDRSTRLEN];
     unsigned short port;
 };
 
@@ -54,6 +55,7 @@ int main ()
     char   buffer[80];
     struct sockaddr_in server_addr;
     struct sockaddr_in client_addr;
+    char *addr;
     socklen_t addrlen;
     struct pollfd fds[MAX_NUM_PLAYERS + 1];
     int    nfds = 1, cur_nfds = 0, i, j;
@@ -103,7 +105,7 @@ int main ()
         exit(-1);
     }
 
-    memset(fds, 0 , sizeof(fds));
+    memset(fds, 0, sizeof(fds));
 
     fds[0].fd = listen_fd;
     fds[0].events = POLLIN;
@@ -136,6 +138,7 @@ int main ()
                 end_server = true;
                 break;
             }
+
             if (fds[i].fd == listen_fd)
             {
                 printf("  Listening socket is readable\n");
@@ -158,9 +161,9 @@ int main ()
                 fds[nfds].events = POLLIN;
 
                 strcpy(buffer, "あなたの名前を入力してください\n> ");
-                if (send(fds[nfds].fd, buffer, strlen(buffer), 0) < 0)
+                if (write(fds[nfds].fd, buffer, strlen(buffer)) < 0)
                 {
-                    perror("  send() failed");
+                    perror("  write() failed");
                     close_conn = true;
                     break;
                 }
@@ -169,10 +172,12 @@ int main ()
                 pl[nfds-1].money = 10000;
                 for (i = 0; i < 5; i++)
                 {
-                    pl[nfds-1].hand[i] = 0;
+                    pl[nfds-1].hand[i] = -1;
                     pl[nfds-1].changed_card[i] = false;
                 }
-                pl[nfds-1].address = inet_ntoa(client_addr.sin_addr);
+
+                inet_ntop(AF_INET, &client_addr.sin_addr, pl[nfds-1].address, INET_ADDRSTRLEN);
+
                 pl[nfds-1].port = ntohs(client_addr.sin_port);
                 printf("name:%s, address:%s, port:%d\n", pl[nfds-1].name, pl[nfds-1].address, pl[nfds-1].port);
 
@@ -186,26 +191,28 @@ int main ()
 
                 for (;;)
                 {
-                    nbytes = recv(fds[i].fd, buffer, sizeof(buffer), 0);
+                    nbytes = read(fds[i].fd, buffer, sizeof(buffer) - 1);
                     if (nbytes < 0)
                     {
                         if (errno != EWOULDBLOCK)
                         {
-                            perror("  recv() failed");
+                            perror("  read() failed");
                             close_conn = true;
                         }
                         break;
                     }
-
                     if (nbytes == 0)
                     {
                         printf("  Connection closed\n");
                         close_conn = true;
                         break;
                     }
+                    buffer[nbytes] = '\0';
 
                     printf("  %d bytes received\n", nbytes);
+                    printf("あなたの名前は %s ですね！\n", buffer);
 
+                    /*
                     rc = send(fds[i].fd, buffer, nbytes, 0);
                     if (rc < 0)
                     {
@@ -213,6 +220,7 @@ int main ()
                         close_conn = true;
                         break;
                     }
+                    */
                 }
 
                 if (close_conn)
