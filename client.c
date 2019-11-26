@@ -89,7 +89,7 @@ int main()
         }
         else
         {
-            perror("  implementation error");
+            perror("  implementation error (wait player)");
             exit(1);
         }
     }
@@ -114,7 +114,44 @@ int main()
         }
         else
         {
-            perror("  implementation error");
+            perror("  implementation error (game prepare)");
+            exit(1);
+        }
+    }
+
+    /* 手札確認処理 */
+    strcpy(buffer, "0\0");
+    exec_write(sock_fd, buffer, strlen(buffer) + 1);
+    nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+    printf("%s", buffer);
+
+    /* ターンの処理 */
+    for (;;)
+    {
+        strcpy(buffer, "0\0");
+        exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+        nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+        flag = buffer[0];
+
+        if (flag == '0')
+        {
+            continue;
+        }
+        else if (flag == '1')
+        {
+            printf("自分の手番\n");
+            break;
+        }
+        else if (flag == '2')
+        {
+            printf("他のプレイヤーの手番\n");
+            break;
+        }
+        else
+        {
+            perror("  implementation error (game biginning of turn)");
+            printf("%s", buffer);
             exit(1);
         }
     }
@@ -125,6 +162,7 @@ int main()
             int l = 0;
         }
     }
+    printf("Done.\n");
 }
 
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size)

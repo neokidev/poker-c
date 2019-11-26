@@ -50,6 +50,10 @@ struct deck {
 
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
 void exec_write(int sock_fd, char *buffer, size_t len);
+bool is_same_player(struct player pl1, struct player pl2);
+char *hand_to_str(int hand[]);
+char card_suit(int card);
+int card_number(int card);
 void draw_cards(int hand[], struct deck *d_p);
 void init_deck(struct deck *d);
 void shuffle_deck(struct deck *d);
@@ -76,6 +80,7 @@ int main ()
 
     struct player pls[MAX_NUM_PLAYERS];
     int    pl_idx;
+    struct player pl_in_turn, pl_next_turn, pl_dealer;
     struct player *pl_in_turn_p, *pl_next_turn_p, *pl_dealer_p;
     struct deck deck1;
     bool   winners[MAX_NUM_PLAYERS];
@@ -203,7 +208,7 @@ int main ()
                 }
                 else
                 {
-                    // printf("  Descriptor %d is readable\n", fds[fd_idx].fd);
+                    printf("  Descriptor %d is readable\n", fds[fd_idx].fd);
 
                     pl_idx = fd_idx - 1;
 
@@ -265,26 +270,26 @@ int main ()
                                 /* 以下の処理を１回だけ行うための条件 */
                                 if (fd_idx == 1)
                                 {
-                                    pl_in_turn_p = &pls[pl_idx];
-                                    pl_next_turn_p = NULL;
+                                    pl_in_turn_p = NULL;
+                                    pl_next_turn_p = &pls[pl_idx];
                                     pl_dealer_p = &pls[MAX_NUM_PLAYERS - 1];
 
                                     init_deck(&deck1);
                                     shuffle_deck(&deck1);
-                                    printf("deck: ");
-                                    print_deck(&deck1);
+                                    // printf("deck: ");
+                                    // print_deck(&deck1);
 
                                     for (i = 0; i < MAX_NUM_PLAYERS; i++)
                                     {
-                                        printf("player %d hand: ", i + 1);
+                                        // printf("player %d hand: ", i + 1);
                                         draw_cards(pls[i].hand, &deck1);
 
                                         for (j = 0; j < NUM_HAND_CARDS; j++)
                                         {
-                                            printf("%d ", pls[i].hand[j]);
+                                            // printf("%d ", pls[i].hand[j]);
                                             pls[i].changed_card[j] = false;
                                         }
-                                        printf("\n");
+                                        // printf("\n");
 
                                         winners[i] = false;
                                     }
@@ -295,7 +300,69 @@ int main ()
 
                                 pls[pl_idx].status = GAME_LOOK_FIRST_HAND;
                             }
+                            break;
+                        case GAME_LOOK_FIRST_HAND:
+                            flag = false;
+                            for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                            {
+                                if (pls[i].status == GAME_PREPARE)
+                                {
+                                    flag = true;
+                                    break;
+                                }
+                            }
+
+                            if (!flag)
+                            {
+                                snprintf(buffer, sizeof(buffer), "山札からカードを5枚引きます\n%s\n\0", hand_to_str(pls[0].hand));
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+
+                                pls[pl_idx].status = GAME_BEGINNING_OF_TURN;
+                            }
+                        case GAME_BEGINNING_OF_TURN:
+                            flag = false;
+                            for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                            {
+                                if (pls[i].status == GAME_LOOK_FIRST_HAND || pls[i].status == GAME_END_OF_TURN)
+                                {
+                                    flag = true;
+                                    break;
+                                }
+                            }
+
+                            if (flag)
+                            {
+                                strcpy(buffer, "0\n\0");
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+                            }
+                            else
+                            {
+                                if (pl_in_turn_p != pl_next_turn_p)
+                                    pl_in_turn_p = pl_next_turn_p;
+
+                                if (&pls[pl_idx] == pl_in_turn_p)
+                                {
+                                    strcpy(buffer, "1\n\0");
+                                    exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+
+                                    pls[pl_idx].status = GAME_MY_TURN;
+                                }
+                                else
+                                {
+                                    sleep(1);
+                                    strcpy(buffer, "2\n\0");
+                                    exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+
+                                    pls[pl_idx].status = GAME_OTHER_PLAYER_TURN;
+                                }
+                            }
                     }
+
+                    printf("    player status: ");
+                    for (i = 0; i < MAX_NUM_PLAYERS; i++) {
+                        printf("%d ", pls[i].status);
+                    }
+                    printf("\n");
 
                     /*
                     if (close_conn)
@@ -325,6 +392,7 @@ int main ()
             }
         }
         */
+       sleep(1);
     }
 
     for (i = 0; i < nfds; i++)
@@ -335,6 +403,95 @@ int main ()
     return 0;
 }
 
+
+
+bool is_same_player(struct player pl1, struct player pl2)
+{
+    if (strcmp(pl1.address, pl2.address) == 0 && pl1.port == pl2.port)
+        return true;
+    return false;
+}
+
+
+char *hand_to_str(int hand[])
+{
+    int i, maxlen, str_idx = 0;
+    int number;
+    char suit;
+    char hand_str[maxlen];
+
+    for (i = 0; i < NUM_HAND_CARDS; i++)
+    {
+        suit = card_suit(hand[i]);
+        number = card_number(hand[i]);
+
+        hand_str[str_idx] = suit;
+        str_idx++;
+
+        switch (number) {
+            case 1:
+                hand_str[str_idx] = 'A';
+                str_idx++;
+                break;
+            case 10:
+                hand_str[str_idx] = '1';
+                str_idx++;
+                hand_str[str_idx] = '0';
+                str_idx++;
+                break;
+            case 11:
+                hand_str[str_idx] = 'J';
+                str_idx++;
+                break;
+            case 12:
+                hand_str[str_idx] = 'Q';
+                str_idx++;
+                break;
+            case 13:
+                hand_str[str_idx] = 'K';
+                str_idx++;
+                break;
+            default:
+                hand_str[str_idx] = '0' + number;
+                str_idx++;
+        }
+
+        if (i < NUM_HAND_CARDS - 1)
+        {
+            hand_str[str_idx] = ' ';
+            str_idx++;
+        }
+        else
+        {
+            hand_str[str_idx++] = '\n';
+            hand_str[str_idx] = '\0';
+        }
+    }
+
+    return hand_str;
+}
+
+
+char card_suit(int card)
+{
+    switch (card / 13)
+    {
+        case 0:
+            return 's';
+        case 1:
+            return 'h';
+        case 2:
+            return 'd';
+        case 3:
+            return 'c';
+    }
+}
+
+
+int card_number(int card)
+{
+    return card % 13 + 1;
+}
 
 
 void draw_cards(int hand[], struct deck *d_p)
@@ -362,7 +519,8 @@ void init_deck(struct deck *d_p)
 void shuffle_deck(struct deck *d_p)
 {
     int i, j, t;
-    for (i = 0; i < NUM_CARDS; i++) {
+    for (i = 0; i < NUM_CARDS; i++)
+    {
         j = rand() % NUM_CARDS;
         t = d_p->cards[i];
         d_p->cards[i] = d_p->cards[j];
@@ -371,7 +529,8 @@ void shuffle_deck(struct deck *d_p)
 }
 
 
-void print_deck(struct deck *d_p) {
+void print_deck(struct deck *d_p)
+{
     int i;
     for (i = 0; i < NUM_CARDS; i++) {
         printf("%d ", d_p->cards[i]);
