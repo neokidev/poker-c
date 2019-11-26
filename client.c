@@ -138,20 +138,30 @@ int main()
         {
             continue;
         }
+        /* 手番のプレイヤーの処理 */
         else if (flag == '1')
         {
-            printf("自分の手番\n");
+            strcpy(buffer, "0\0");
+            exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+            nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+            printf("%s", buffer);
             break;
         }
+        /* 手番ではないプレイヤーの処理 */
         else if (flag == '2')
         {
-            printf("他のプレイヤーの手番\n");
+            strcpy(buffer, "0\0");
+            exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+            nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+            printf("%s", buffer);
             break;
         }
         else
         {
             perror("  implementation error (game biginning of turn)");
-            printf("%s", buffer);
+            printf("recieved message: %s", buffer);
             exit(1);
         }
     }

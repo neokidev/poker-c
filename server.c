@@ -213,12 +213,13 @@ int main ()
                     pl_idx = fd_idx - 1;
 
                     // close_conn = false;
-                    nbytes = exec_read(fds[fd_idx].fd, pls[pl_idx].name, sizeof(pls[pl_idx].name));
+                    nbytes = exec_read(fds[fd_idx].fd, buffer, sizeof(buffer));
                     // printf("  %d bytes received\n", nbytes);
 
                     switch (pls[pl_idx].status)
                     {
                         case REGIST_NAME:
+                            strncpy(pls[pl_idx].name, buffer, strlen(buffer) + 1);
                             snprintf(buffer, sizeof(buffer), "ポーカーの世界へようこそ！%s さん！\n\0", pls[pl_idx].name);
                             exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
@@ -319,6 +320,7 @@ int main ()
 
                                 pls[pl_idx].status = GAME_BEGINNING_OF_TURN;
                             }
+                            break;
                         case GAME_BEGINNING_OF_TURN:
                             flag = false;
                             for (i = 0; i < MAX_NUM_PLAYERS; i++)
@@ -356,6 +358,19 @@ int main ()
                                     pls[pl_idx].status = GAME_OTHER_PLAYER_TURN;
                                 }
                             }
+                            break;
+                        case GAME_MY_TURN:
+                            strcpy(buffer, "あなたの番です\n\0");
+                            exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+
+                            pls[pl_idx].status = GAME_START_CHANGE_CARD;
+                            break;
+                        case GAME_OTHER_PLAYER_TURN:
+                            snprintf(buffer, sizeof(buffer), "%s さんの番です\n\0", pl_in_turn_p->name);
+                            exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+
+                            pls[pl_idx].status = GAME_END_OF_TURN;
+                            break;
                     }
 
                     printf("    player status: ");
