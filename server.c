@@ -49,9 +49,10 @@ struct deck {
 };
 
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
-void exec_write(int sock_fd, char *buffer, size_t len);
+int exec_write(int sock_fd, char *buffer, size_t len);
 bool is_same_player(struct player pl1, struct player pl2);
 char *hand_to_str(int hand[]);
+char *card_to_str(int card);
 char card_suit(int card);
 int card_number(int card);
 void draw_cards(int hand[], struct deck *d_p);
@@ -365,6 +366,33 @@ int main ()
 
                             pls[pl_idx].status = GAME_START_CHANGE_CARD;
                             break;
+                        case GAME_START_CHANGE_CARD:
+                            strcpy(buffer, "交換するカードを選んでください\n0. 交換しない\n");
+                            j = 1;
+                            for (i = 0; i < NUM_HAND_CARDS; i++)
+                            {
+                                if (!pls[pl_idx].changed_card[i])
+                                {
+                                    snprintf(buffer, sizeof(buffer), "%s%d. %s\n",
+                                             buffer, j, card_to_str(pls[pl_idx].hand[i]));
+                                    j++;
+                                }
+                            }
+                            snprintf(buffer, sizeof(buffer), "%s> \0", buffer);
+
+                            int wrote_nbytes = 0;
+                            for (;;)
+                            {
+                                wrote_nbytes += exec_write(fds[fd_idx].fd, buffer+wrote_nbytes, strlen(buffer) -wrote_nbytes + 1);
+                                if (wrote_nbytes >= strlen(buffer))
+                                {
+                                    break;
+                                }
+                            }
+
+                            pls[pl_idx].status = GAME_SELECT_CHANGE_CARD;
+
+                            break;
                         case GAME_OTHER_PLAYER_TURN:
                             snprintf(buffer, sizeof(buffer), "%s さんの番です\n\0", pl_in_turn_p->name);
                             exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
@@ -430,7 +458,8 @@ bool is_same_player(struct player pl1, struct player pl2)
 
 char *hand_to_str(int hand[])
 {
-    int i, maxlen, str_idx = 0;
+    /* TODO: 改行は消しましょうよ(maxlenも19にする) */
+    int i, maxlen = 20, str_idx = 0;
     int number;
     char suit;
     char hand_str[maxlen];
@@ -486,6 +515,48 @@ char *hand_to_str(int hand[])
     return hand_str;
 }
 
+char *card_to_str(int card)
+{
+    int i, maxlen = 4, str_idx = 1;
+    int n;
+    char card_str[maxlen];
+
+    card_str[0] = card_suit(card);
+
+    n = card_number(card);
+
+    switch (n) {
+        case 1:
+            card_str[str_idx] = 'A';
+            str_idx++;
+            break;
+        case 10:
+            card_str[str_idx] = '1';
+            str_idx++;
+            card_str[str_idx] = '0';
+            str_idx++;
+            break;
+        case 11:
+            card_str[str_idx] = 'J';
+            str_idx++;
+            break;
+        case 12:
+            card_str[str_idx] = 'Q';
+            str_idx++;
+            break;
+        case 13:
+            card_str[str_idx] = 'K';
+            str_idx++;
+            break;
+        default:
+            card_str[str_idx] = '0' + n;
+            str_idx++;
+    }
+
+    card_str[str_idx] = '\0';
+
+    return card_str;
+}
 
 char card_suit(int card)
 {
@@ -578,11 +649,14 @@ int exec_read(int fd, char *buffer, unsigned long buffer_size)
     return nbytes;
 }
 
-void exec_write(int fd, char *buffer, size_t len)
+int exec_write(int fd, char *buffer, size_t len)
 {
-    if (write(fd, buffer, len) < 0)
+    int nbytes;
+    nbytes = write(fd, buffer, len);
+    if (nbytes < 0)
     {
         perror("  write() failed");
         exit(1);
     }
+    return nbytes;
 }

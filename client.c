@@ -146,6 +146,25 @@ int main()
 
             nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
             printf("%s", buffer);
+
+            /* カードの交換処理 */
+            strcpy(buffer, "0\0");
+            exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+            for (;;)
+            {
+                nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+                if (buffer[nbytes-1] == '\0')
+                {
+                    printf("%s", buffer);
+                    break;
+                }
+                else
+                {
+                    buffer[nbytes] = '\0';
+                    printf("%s", buffer);
+                }
+            }
             break;
         }
         /* 手番ではないプレイヤーの処理 */
@@ -177,7 +196,8 @@ int main()
 
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size)
 {
-    int nbytes = read(sock_fd, buffer, buffer_size);
+    int nbytes;
+    nbytes = read(sock_fd, buffer, buffer_size);
     if (nbytes < 0)
     {
         if (errno != EWOULDBLOCK)
@@ -194,7 +214,7 @@ int exec_read(int sock_fd, char *buffer, unsigned long buffer_size)
         close(sock_fd);
     }
 
-    buffer[nbytes] = '\0';
+    // buffer[nbytes] = '\0';
 
     return nbytes;
 }
