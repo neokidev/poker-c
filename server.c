@@ -385,15 +385,7 @@ int main ()
                             }
                             snprintf(buffer, sizeof(buffer), "%s> \0", buffer);
 
-                            int wrote_nbytes = 0;
-                            for (;;)
-                            {
-                                wrote_nbytes += exec_write(fds[fd_idx].fd, buffer+wrote_nbytes, strlen(buffer) -wrote_nbytes + 1);
-                                if (wrote_nbytes == strlen(buffer) + 1)
-                                {
-                                    break;
-                                }
-                            }
+                            nbytes += exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
                             pls[pl_idx].status = GAME_SELECT_CHANGE_CARD;
                             break;
