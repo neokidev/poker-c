@@ -55,6 +55,7 @@ char *hand_to_str(int hand[]);
 char *card_to_str(int card);
 char card_suit(int card);
 int card_number(int card);
+void change_card(struct player *pl_p, struct deck *d_p, int card_idx);
 void draw_cards(int hand[], struct deck *d_p);
 void init_deck(struct deck *d);
 void shuffle_deck(struct deck *d);
@@ -316,7 +317,7 @@ int main ()
 
                             if (!flag)
                             {
-                                snprintf(buffer, sizeof(buffer), "山札からカードを5枚引きます\n%s\n\0", hand_to_str(pls[0].hand));
+                                snprintf(buffer, sizeof(buffer), "山札からカードを5枚引きます\n%s\n\0", hand_to_str(pls[pl_idx].hand));
                                 exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
                                 pls[pl_idx].status = GAME_BEGINNING_OF_TURN;
@@ -384,14 +385,43 @@ int main ()
                             for (;;)
                             {
                                 wrote_nbytes += exec_write(fds[fd_idx].fd, buffer+wrote_nbytes, strlen(buffer) -wrote_nbytes + 1);
-                                if (wrote_nbytes >= strlen(buffer))
+                                if (wrote_nbytes == strlen(buffer) + 1)
                                 {
                                     break;
                                 }
                             }
 
                             pls[pl_idx].status = GAME_SELECT_CHANGE_CARD;
+                            break;
+                        case GAME_SELECT_CHANGE_CARD:
+                            if (buffer[0] == '0')
+                            {
+                                /* カードの交換を終了する */
+                                snprintf(buffer, sizeof(buffer), "1手札の交換を終了します\n%s\n\0", hand_to_str(pls[pl_idx].hand));
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
+                                pls[pl_idx].status = GAME_END_OF_TURN;
+                            }
+                            else
+                            {
+                                /* カードを交換する */
+                                j = 1;
+                                for (i = 0; i < NUM_HAND_CARDS; i++)
+                                {
+                                    if (pls[pl_idx].changed_card[i])
+                                        continue;
+
+                                    if (buffer[0] == '0' + j)
+                                    {
+                                        change_card(&pls[pl_idx], &deck1, i);
+                                        snprintf(buffer, sizeof(buffer), "0%d番目のカードを交換します\n\0", i + 1);
+                                        exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+                                        break;
+                                    }
+                                    j++;
+                                }
+                                pls[pl_idx].status = GAME_START_CHANGE_CARD;
+                            }
                             break;
                         case GAME_OTHER_PLAYER_TURN:
                             snprintf(buffer, sizeof(buffer), "%s さんの番です\n\0", pl_in_turn_p->name);
@@ -459,7 +489,7 @@ bool is_same_player(struct player pl1, struct player pl2)
 char *hand_to_str(int hand[])
 {
     /* TODO: 改行は消しましょうよ(maxlenも19にする) */
-    int i, maxlen = 20, str_idx = 0;
+    int i, maxlen = 19, str_idx = 0;
     int number;
     char suit;
     char hand_str[maxlen];
@@ -507,7 +537,6 @@ char *hand_to_str(int hand[])
         }
         else
         {
-            hand_str[str_idx++] = '\n';
             hand_str[str_idx] = '\0';
         }
     }
@@ -577,6 +606,14 @@ char card_suit(int card)
 int card_number(int card)
 {
     return card % 13 + 1;
+}
+
+
+void change_card(struct player *pl_p, struct deck *d_p, int card_idx)
+{
+    pl_p->hand[card_idx] = d_p->cards[d_p->next_draw_idx];
+    pl_p->changed_card[card_idx] = true;
+    d_p->next_draw_idx++;
 }
 
 

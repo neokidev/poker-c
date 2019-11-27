@@ -148,21 +148,47 @@ int main()
             printf("%s", buffer);
 
             /* カードの交換処理 */
-            strcpy(buffer, "0\0");
-            exec_write(sock_fd, buffer, strlen(buffer) + 1);
-
+            char select[3] = {'1', '4', '0'};
+            int j = 0;
             for (;;)
             {
-                nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
-                if (buffer[nbytes-1] == '\0')
+                strcpy(buffer, "0\0");
+                exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+                for (;;)
                 {
-                    printf("%s", buffer);
+                    nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+                    if (buffer[nbytes-1] == '\0')
+                    {
+                        printf("%s", buffer);
+                        break;
+                    }
+                    else
+                    {
+                        buffer[nbytes] = '\0';
+                        printf("%s", buffer);
+                    }
+                }
+
+                snprintf(buffer, sizeof(buffer), "%c\0", select[j]);
+                exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+                nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+                flag = buffer[0];
+
+                if (flag == '0')
+                {
+                    printf("%s", &buffer[1]);
+                    j++;
+                }
+                else if (flag == '1')
+                {
+                    printf("%s", &buffer[1]);
                     break;
                 }
                 else
                 {
-                    buffer[nbytes] = '\0';
-                    printf("%s", buffer);
+                    perror("  implementation error (game swap card)");
                 }
             }
             break;
@@ -183,6 +209,7 @@ int main()
             printf("recieved message: %s", buffer);
             exit(1);
         }
+        break;
     }
 
     /* ちょっとした時間稼ぎ */
