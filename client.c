@@ -261,7 +261,12 @@ int main()
         }
 
         if (gamed_over_flag)
+        {
+            printf("      結果を表示します\n");
+            printf("      Aの勝ち\n");
+            printf("      ゲームは終了しました\n");
             break;
+        }
     }
 
     /* ちょっとした時間稼ぎ */

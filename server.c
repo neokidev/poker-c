@@ -484,10 +484,15 @@ int main ()
                                 }
                             }
                             break;
+                        case GAME_RESULT:
+                            printf("      結果を表示します\n");
+                            printf("      Aの勝ち\n");
+                            printf("      ゲームは終了しました\n");
                     }
 
                     printf("    player status: ");
-                    for (i = 0; i < MAX_NUM_PLAYERS; i++) {
+                    for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                    {
                         printf("%d ", pls[i].status);
                     }
                     printf("\n");
