@@ -51,6 +51,9 @@ struct deck {
     int next_draw_idx;
 };
 
+static char hand_str[19];
+static char card_str[4];
+
 bool is_same_player(struct player pl1, struct player pl2);
 char *hand_to_str(int hand[]);
 char *card_to_str(int card);
@@ -63,6 +66,29 @@ void shuffle_deck(struct deck *d);
 void print_deck(struct deck *d);
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
 int exec_write(int sock_fd, char *buffer, size_t len);
+
+// judge_poker
+int compareInt_asc(const void* a, const void* b);
+int compareInt_desc(const void* a, const void* b);
+
+/*
+役の強さのランク
+1.ストレートフラッシュ
+2.フォーカード
+3.フルハウス
+4.フラッシュ
+5.ストレート
+6.スリーカード
+7.ツーペア
+8.ワンペア
+9.ハイカード
+*/
+// 役の強さのランクを返す関数
+int judge_hand(int hand[]);
+
+// 勝利したプレイヤーの配列を変更する
+void judge_winners(struct player *pls, bool *winners_player);
+// judge_poker
 
 int main ()
 {
@@ -498,7 +524,23 @@ int main ()
                             }
                             else
                             {
-                                strcpy(buffer, "1結果を表示します\nAの勝ち\nゲームは終了しました\n\0");
+                                bool winners_player[MAX_NUM_PLAYERS];
+                                judge_winners(&pls, winners_player);
+                                
+                                // strcpy(buffer, "1結果を表示します\nAの勝ち\nゲームは終了しました\n\0");
+                                
+                                for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                                {
+                                    if (winners_player[i] == true)
+                                    {
+                                        snprintf(buffer, sizeof(buffer), "1%s%s\t[%s] Win!! \n", buffer+1, pls[i].name, hand_to_str(pls[i].hand));
+                                    }
+                                    else
+                                    {
+                                        snprintf(buffer, sizeof(buffer), "1%s%s\t[%s] Lose... \n", buffer+1, pls[i].name, hand_to_str(pls[i].hand));
+                                    }
+                                }
+
                                 exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
                                 pls[pl_idx].status = GAME_RESULT + 1;
@@ -567,7 +609,7 @@ char *hand_to_str(int hand[])
     int i, maxlen = 19, str_idx = 0;
     int number;
     char suit;
-    char hand_str[maxlen];
+    // char hand_str[maxlen];
 
     for (i = 0; i < NUM_HAND_CARDS; i++)
     {
@@ -623,7 +665,7 @@ char *card_to_str(int card)
 {
     int i, maxlen = 4, str_idx = 1;
     int n;
-    char card_str[maxlen];
+    // char card_str[maxlen];
 
     card_str[0] = card_suit(card);
 
@@ -774,4 +816,161 @@ int exec_write(int fd, char *buffer, size_t len)
     }
 
     return nbytes;
+}
+
+// judge_poker
+int compareInt_asc(const void* a, const void* b)
+{
+    return *(int*)a - *(int*)b;
+}
+
+int compareInt_desc(const void* a, const void* b)
+{
+    return *(int*)b - *(int*)a;
+}
+
+int judge_hand(int hand[])
+{
+    int hand_num[NUM_HAND_CARDS] = {0};
+    int hand_marks[NUM_HAND_CARDS] = {0};
+
+    for (int i = 0; i < NUM_HAND_CARDS; i++)
+    {
+        hand_num[i] = card_number(hand[i]);
+        hand_marks[i] = card_suit(hand[i]);
+    }
+
+    qsort(hand_num, NUM_HAND_CARDS, sizeof(int), compareInt_asc);
+
+    // フラッシュかどうかのフラグを変更する
+    int top_mark = hand_marks[0];
+    int flash_flag = 1;
+    for (int i = 1; i < NUM_HAND_CARDS; i++)
+    {
+        if (top_mark != hand_marks[i])
+        {
+            flash_flag = 0;
+            break;
+        }
+    }
+
+    // ストレートかどうかのフラグを変更する
+    int top_num = hand_num[0];
+    int straight_flag = 1;
+    for (int i = 1; i < NUM_HAND_CARDS; i++)
+    {
+        if (top_num == 1 && hand_num[i] > 9)
+        {
+            top_num = 9;
+        }
+        top_num++;
+        if (hand_num[i] != top_num)
+        {
+            straight_flag = 0;
+            break;
+        }
+    }
+
+    // ストレートフラッシュ判定(ランク:1)
+    if (flash_flag == 1 && straight_flag == 1)
+    {
+        return 1;
+    }
+
+    // 重複する数字の判定
+    int hand_dup[NUM_HAND_CARDS] = {0};
+    int dup_index = 0;
+    for (int i = 0; i < NUM_HAND_CARDS; i++)
+    {
+        int dup_count = 1;
+        for (int j = (i+1); j < NUM_HAND_CARDS; j++)
+        {
+            if (hand_num[i] != hand_num[j])
+            {
+                break;
+            }
+            dup_count++;
+        }
+        hand_dup[dup_index] = dup_count;
+        dup_index++;
+        i += dup_count-1;
+    }
+
+    qsort(hand_dup, dup_index, sizeof(int), compareInt_desc);
+
+    // フォーカード判定(ランク:2)
+    if (hand_dup[0] == 4)
+    {
+        return 2;
+    }
+
+    // フルハウス判定(ランク:3)
+    if (hand_dup[0] == 3 && hand_dup[1] == 2)
+    {
+        return 3;
+    }
+
+    // フラッシュ判定(ランク:4)
+    if (flash_flag == 1)
+    {
+        return 4;
+    }
+
+    // ストレート判定(ランク:5)
+    if (straight_flag == 1)
+    {
+        return 5;
+    }
+
+    // スリーカード判定(ランク:6)
+    if (hand_dup[0] == 3)
+    {
+        return 6;
+    }
+
+    // ツーペア判定(ランク:7) and ワンペア判定(ランク:8)
+    if (hand_dup[0] == 2)
+    {
+        if (hand_dup[1] == 2)
+        {
+            return 7;
+        }
+        else
+        {
+            return 8;
+        }
+    }
+
+    return 9;
+}
+
+void judge_winners(struct player *pls, bool *winners_player)
+{
+    int player_rank[MAX_NUM_PLAYERS] = {0};
+    int player_hands[MAX_NUM_PLAYERS] = {0};
+    for (int i = 0; i < MAX_NUM_PLAYERS; i++)
+    {
+        player_rank[i] = judge_hand(pls[i].hand);
+    }
+
+    int min_rank = player_rank[0];
+    for (int i = 1; i < MAX_NUM_PLAYERS; i++)
+    {
+        if (min_rank > player_rank[i])
+        {
+            min_rank = player_rank[i];
+        }
+    }
+
+    for (int i = 0; i < MAX_NUM_PLAYERS; i++)
+    {
+        if (min_rank == player_rank[i])
+        {
+            winners_player[i] = true;
+        }
+        else
+        {
+            winners_player[i] = false;
+        }
+    }
 }
