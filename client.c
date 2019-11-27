@@ -19,7 +19,7 @@ void exec_write(int sock_fd, char *buffer, size_t strlen);
 int main()
 {
     int    sock_fd, nbytes;
-    char   flag, print_flag;
+    char   flag, print_flag, gamed_over_flag;
     char   buffer[80], stdin_buffer[80];
     struct sockaddr_in servaddr;
     if ((sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -192,7 +192,6 @@ int main()
                     perror("  implementation error (game swap card)");
                 }
             }
-            break;
         }
         /* 手番ではないプレイヤーの処理 */
         else if (flag == '2')
@@ -228,10 +227,41 @@ int main()
         else
         {
             perror("  implementation error (game biginning of turn)");
-            printf("recieved message: %s", buffer);
             exit(1);
         }
-        break;
+
+        /* ターン終了時の処理 */
+        for (;;)
+        {
+            strcpy(buffer, "0\0");
+            exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+            nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+            flag = buffer[0];
+
+            if (flag == '0')
+            {
+                continue;
+            }
+            else if (flag == '1')
+            {
+                gamed_over_flag = false;
+                break;
+            }
+            else if (flag == '2')
+            {
+                gamed_over_flag = true;
+                break;
+            }
+            else
+            {
+                perror("  implementation error (game end of turn)");
+                exit(1);
+            }
+        }
+
+        if (gamed_over_flag)
+            break;
     }
 
     /* ちょっとした時間稼ぎ */

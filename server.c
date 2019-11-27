@@ -444,8 +444,6 @@ int main ()
                             }
                             break;
                         case GAME_END_OF_TURN:
-                            break;
-                            /*
                             flag = false;
                             for (i = 0; i < MAX_NUM_PLAYERS; i++)
                             {
@@ -457,12 +455,35 @@ int main ()
                                 }
                             }
 
-                            if (!flag)
+                            if (flag)
                             {
-                                pls[pl_idx].status = GAME_RESULT;
+                                strcpy(buffer, "0\0");
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+                            }
+                            else
+                            {
+                                /* 現在の手番のプレイヤーがディーラーの場合 */
+                                if (pl_in_turn_p == pl_dealer_p)
+                                {
+                                    strcpy(buffer, "2\0");
+                                    exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+
+                                    pls[pl_idx].status = GAME_RESULT;
+                                }
+                                /* 現在の手番のプレイヤーがディーラーではない場合 */
+                                else
+                                {
+                                    if (&pls[pl_idx] == pl_in_turn_p)
+                                    {
+                                        pl_next_turn_p = &pls[(pl_idx + 1) % MAX_NUM_PLAYERS];
+                                    }
+                                    strcpy(buffer, "1\0");
+                                    exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+
+                                    pls[pl_idx].status = GAME_BEGINNING_OF_TURN;
+                                }
                             }
                             break;
-                            */
                     }
 
                     printf("    player status: ");
