@@ -151,8 +151,6 @@ int main()
             printf("%s", buffer);
 
             /* カードの交換処理 */
-            char select[3] = {'1', '4', '0'};
-            int j = 0;
             for (;;)
             {
                 strcpy(buffer, "0\0");
@@ -161,7 +159,9 @@ int main()
                 nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
                 printf("%s", buffer);
 
-                snprintf(buffer, sizeof(buffer), "%c\0", select[j]);
+                fgets(buffer, sizeof(buffer), stdin);
+                /* TODO: 例外処理を行う必要 */
+                snprintf(buffer, sizeof(buffer), "%c\0", buffer[0]);
                 exec_write(sock_fd, buffer, strlen(buffer) + 1);
 
                 nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
@@ -170,7 +170,6 @@ int main()
                 if (flag == '0')
                 {
                     printf("%s", &buffer[1]);
-                    j++;
                 }
                 else if (flag == '1')
                 {
