@@ -424,11 +424,45 @@ int main ()
                             }
                             break;
                         case GAME_OTHER_PLAYER_TURN:
-                            snprintf(buffer, sizeof(buffer), "%s さんの番です\n\0", pl_in_turn_p->name);
-                            exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+                            if (pl_in_turn_p->status == GAME_BEGINNING_OF_TURN || pl_in_turn_p->status == GAME_MY_TURN ||
+                                pl_in_turn_p->status == GAME_START_CHANGE_CARD || pl_in_turn_p->status == GAME_SELECT_CHANGE_CARD)
+                            {
+                                snprintf(buffer, sizeof(buffer), "0%s さんの番です\n\0", pl_in_turn_p->name);
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+                            }
+                            else if (pl_in_turn_p->status == GAME_END_OF_TURN)
+                            {
+                                strcpy(buffer, "1\0");
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
-                            pls[pl_idx].status = GAME_END_OF_TURN;
+                                pls[pl_idx].status = GAME_END_OF_TURN;
+                            }
+                            else
+                            {
+                                perror("  implementation error (ohter player)");
+                                exit(1);
+                            }
                             break;
+                        case GAME_END_OF_TURN:
+                            break;
+                            /*
+                            flag = false;
+                            for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                            {
+                                if (pls[i].status == GAME_MY_TURN || pls[i].status == GAME_OTHER_PLAYER_TURN ||
+                                    pls[i].status == GAME_START_CHANGE_CARD || pls[i].status == GAME_SELECT_CHANGE_CARD)
+                                {
+                                    flag = true;
+                                    break;
+                                }
+                            }
+
+                            if (!flag)
+                            {
+                                pls[pl_idx].status = GAME_RESULT;
+                            }
+                            break;
+                            */
                     }
 
                     printf("    player status: ");
@@ -488,7 +522,6 @@ bool is_same_player(struct player pl1, struct player pl2)
 
 char *hand_to_str(int hand[])
 {
-    /* TODO: 改行は消しましょうよ(maxlenも19にする) */
     int i, maxlen = 19, str_idx = 0;
     int number;
     char suit;

@@ -77,7 +77,8 @@ int main()
 
         if (flag == '0')
         {
-            if (!print_flag) {
+            if (!print_flag)
+            {
                 printf("%s", &buffer[1]);
                 print_flag = true;
             }
@@ -196,12 +197,33 @@ int main()
         /* 手番ではないプレイヤーの処理 */
         else if (flag == '2')
         {
-            strcpy(buffer, "0\0");
-            exec_write(sock_fd, buffer, strlen(buffer) + 1);
+            print_flag = false;
+            for (;;)
+            {
+                strcpy(buffer, "0\0");
+                exec_write(sock_fd, buffer, strlen(buffer) + 1);
 
-            nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
-            printf("%s", buffer);
-            break;
+                nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+                flag = buffer[0];
+
+                if (flag == '0')
+                {
+                    if (!print_flag)
+                    {
+                        printf("%s", &buffer[1]);
+                        print_flag = true;
+                    }
+                }
+                else if (flag == '1')
+                {
+                    break;
+                }
+                else
+                {
+                    perror("  implementation error (ohter player)");
+                    exit(1);
+                }
+            }
         }
         else
         {
