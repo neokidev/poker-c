@@ -62,7 +62,24 @@ int main()
     }
     else if (flag == '1')
     {
-        printf("%s", &buffer[1]);
+        /* TODO: ちゃんと最後まで読み出すread処理．あとで関数にしたい */
+        buffer[nbytes] = '\0';
+        printf("%s", buffer);
+        for (;;)
+        {
+            nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+            if (buffer[nbytes-1] == '\0')
+            {
+                printf("%s", buffer);
+                break;
+            }
+            else
+            {
+                buffer[nbytes] = '\0';
+                printf("%s", buffer);
+            }
+        }
+        exit(0);
     }
 
     /* プレイヤー待機処理 */
@@ -156,6 +173,7 @@ int main()
                 strcpy(buffer, "0\0");
                 exec_write(sock_fd, buffer, strlen(buffer) + 1);
 
+                /* TODO: ちゃんと最後まで読み出すread処理．あとで関数にしたい */
                 for (;;)
                 {
                     nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
@@ -262,9 +280,24 @@ int main()
 
         if (gamed_over_flag)
         {
-            printf("      結果を表示します\n");
-            printf("      Aの勝ち\n");
-            printf("      ゲームは終了しました\n");
+            for (;;)
+            {
+                strcpy(buffer, "0\0");
+                exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+                nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+                flag = buffer[0];
+
+                if (flag == '0')
+                {
+                    continue;
+                }
+                else if (flag == '1')
+                {
+                    printf("%s", &buffer[1]);
+                    break;
+                }
+            }
             break;
         }
     }

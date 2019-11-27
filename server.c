@@ -203,8 +203,8 @@ int main ()
                     }
                     else
                     {
-                        strcpy(buffer, "1参加人数の上限を超えているので，参加できませんでした\n\0");
-                        exec_write(conn_fd, buffer, strlen(buffer) + 1);
+                        snprintf(buffer, sizeof(buffer), "1参加人数の上限を超えたため，参加できませんでした\n\0");
+                        nbytes = exec_write(conn_fd, buffer, strlen(buffer) + 1);
                         close(conn_fd);
                     }
                 }
@@ -485,9 +485,29 @@ int main ()
                             }
                             break;
                         case GAME_RESULT:
-                            printf("      結果を表示します\n");
-                            printf("      Aの勝ち\n");
-                            printf("      ゲームは終了しました\n");
+                            flag = false;
+                            for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                            {
+                                if (pls[i].status == GAME_END_OF_TURN)
+                                {
+                                    flag = true;
+                                    break;
+                                }
+                            }
+
+                            if (flag)
+                            {
+                                strcpy(buffer, "0\0");
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+                            }
+                            else
+                            {
+                                strcpy(buffer, "1結果を表示します\nAの勝ち\nゲームは終了しました\n\0");
+                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+
+                                pls[pl_idx].status = GAME_RESULT + 1;
+                            }
+                            break;
                     }
 
                     printf("    player status: ");
