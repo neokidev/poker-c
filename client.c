@@ -10,17 +10,18 @@
 #include <errno.h>
 
 
-#define SERVER_ADDR  "127.0.0.1"
-#define SERVER_PORT  30000
+#define SERVER_ADDR "127.0.0.1"
+#define SERVER_PORT      30000
+#define BUFFER_SIZE        128
 
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
-void exec_write(int sock_fd, char *buffer, size_t strlen);
+int exec_write(int sock_fd, char *buffer, size_t len);
 
 int main()
 {
     int    sock_fd, nbytes;
     char   flag, print_flag, gamed_over_flag;
-    char   buffer[80], stdin_buffer[80];
+    char   buffer[BUFFER_SIZE], stdin_buffer[BUFFER_SIZE];
     struct sockaddr_in servaddr;
     if ((sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
@@ -62,23 +63,7 @@ int main()
     }
     else if (flag == '1')
     {
-        /* TODO: ちゃんと最後まで読み出すread処理．あとで関数にしたい */
-        buffer[nbytes] = '\0';
-        printf("%s", buffer);
-        for (;;)
-        {
-            nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
-            if (buffer[nbytes-1] == '\0')
-            {
-                printf("%s", buffer);
-                break;
-            }
-            else
-            {
-                buffer[nbytes] = '\0';
-                printf("%s", buffer);
-            }
-        }
+        printf("%s", &buffer[1]);
         exit(0);
     }
 
@@ -173,21 +158,8 @@ int main()
                 strcpy(buffer, "0\0");
                 exec_write(sock_fd, buffer, strlen(buffer) + 1);
 
-                /* TODO: ちゃんと最後まで読み出すread処理．あとで関数にしたい */
-                for (;;)
-                {
-                    nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
-                    if (buffer[nbytes-1] == '\0')
-                    {
-                        printf("%s", buffer);
-                        break;
-                    }
-                    else
-                    {
-                        buffer[nbytes] = '\0';
-                        printf("%s", buffer);
-                    }
-                }
+                nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+                printf("%s", buffer);
 
                 snprintf(buffer, sizeof(buffer), "%c\0", select[j]);
                 exec_write(sock_fd, buffer, strlen(buffer) + 1);
@@ -311,16 +283,18 @@ int main()
     printf("Done.\n");
 }
 
-int exec_read(int sock_fd, char *buffer, unsigned long buffer_size)
+
+int exec_read(int fd, char *buffer, unsigned long buffer_size)
 {
-    int nbytes;
-    nbytes = read(sock_fd, buffer, buffer_size);
+    int nbytes = 0;
+
+    nbytes = read(fd, buffer, buffer_size);
     if (nbytes < 0)
     {
         if (errno != EWOULDBLOCK)
         {
             perror("  read() failed");
-            close(sock_fd);
+            close(fd);
             exit(1);
         }
     }
@@ -328,19 +302,23 @@ int exec_read(int sock_fd, char *buffer, unsigned long buffer_size)
     if (nbytes == 0)
     {
         printf("  Connection closed\n");
-        close(sock_fd);
+        close(fd);
     }
-
-    // buffer[nbytes] = '\0';
 
     return nbytes;
 }
 
-void exec_write(int sock_fd, char *buffer, size_t len)
+
+int exec_write(int fd, char *buffer, size_t len)
 {
-    if (write(sock_fd, buffer, len) < 0)
+    int nbytes = 0;
+
+    nbytes = write(fd, buffer, len);
+    if (nbytes < 0)
     {
         perror("  write() failed");
         exit(1);
     }
+
+    return nbytes;
 }

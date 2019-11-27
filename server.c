@@ -11,11 +11,14 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+
 #define SERVER_ADDR "127.0.0.1"
 #define SERVER_PORT      30000
+#define BUFFER_SIZE        128
 #define MAX_NUM_PLAYERS      3
 #define NUM_HAND_CARDS       5
 #define NUM_CARDS           52
+#define MAX_NAME_LEN        20
 
 
 enum PlayerStatus {
@@ -33,7 +36,7 @@ enum PlayerStatus {
 };
 
 struct player {
-    char name[20];
+    char name[MAX_NAME_LEN];
     int money;
     int hand[NUM_HAND_CARDS];
     bool changed_card[NUM_HAND_CARDS];
@@ -48,8 +51,6 @@ struct deck {
     int next_draw_idx;
 };
 
-int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
-int exec_write(int sock_fd, char *buffer, size_t len);
 bool is_same_player(struct player pl1, struct player pl2);
 char *hand_to_str(int hand[]);
 char *card_to_str(int card);
@@ -60,6 +61,8 @@ void draw_cards(int hand[], struct deck *d_p);
 void init_deck(struct deck *d);
 void shuffle_deck(struct deck *d);
 void print_deck(struct deck *d);
+int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
+int exec_write(int sock_fd, char *buffer, size_t len);
 
 int main ()
 {
@@ -70,7 +73,7 @@ int main ()
     int    listen_fd = -1, conn_fd = -1;
     int    end_server = false, compress_array = false;
     int    close_conn;
-    char   buffer[200];
+    char   buffer[BUFFER_SIZE];
     struct sockaddr_in server_addr;
     struct sockaddr_in client_addr;
     char   *addr;
@@ -205,6 +208,7 @@ int main ()
                     {
                         snprintf(buffer, sizeof(buffer), "1参加人数の上限を超えたため，参加できませんでした\n\0");
                         nbytes = exec_write(conn_fd, buffer, strlen(buffer) + 1);
+                        printf("nbytes: %d\n", nbytes);
                         close(conn_fd);
                     }
                 }
@@ -743,7 +747,9 @@ void print_deck(struct deck *d_p)
 
 int exec_read(int fd, char *buffer, unsigned long buffer_size)
 {
-    int nbytes = read(fd, buffer, buffer_size);
+    int nbytes = 0;
+
+    nbytes = read(fd, buffer, buffer_size);
     if (nbytes < 0)
     {
         if (errno != EWOULDBLOCK)
@@ -760,19 +766,20 @@ int exec_read(int fd, char *buffer, unsigned long buffer_size)
         close(fd);
     }
 
-    buffer[nbytes] = '\0';
-
     return nbytes;
 }
 
+
 int exec_write(int fd, char *buffer, size_t len)
 {
-    int nbytes;
+    int nbytes = 0;
+
     nbytes = write(fd, buffer, len);
     if (nbytes < 0)
     {
         perror("  write() failed");
         exit(1);
     }
+
     return nbytes;
 }
