@@ -18,7 +18,7 @@
 #define MAX_NUM_PLAYERS      3
 #define NUM_HAND_CARDS       5
 #define NUM_CARDS           52
-#define MAX_NAME_LEN        20
+#define MAX_NAME_LEN        30
 
 
 enum PlayerStatus {
@@ -36,7 +36,7 @@ enum PlayerStatus {
 };
 
 struct player {
-    char name[MAX_NAME_LEN];
+    char name[MAX_NAME_LEN + 1];
     int money;
     int hand[NUM_HAND_CARDS];
     bool changed_card[NUM_HAND_CARDS];

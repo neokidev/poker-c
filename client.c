@@ -13,13 +13,14 @@
 #define SERVER_ADDR "127.0.0.1"
 #define SERVER_PORT      30000
 #define BUFFER_SIZE        128
+#define MAX_NAME_LEN        30
 
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
 int exec_write(int sock_fd, char *buffer, size_t len);
 
 int main()
 {
-    int    sock_fd, nbytes;
+    int    sock_fd, nbytes, len;
     char   flag, print_flag, gamed_over_flag;
     char   buffer[BUFFER_SIZE], stdin_buffer[BUFFER_SIZE];
     struct sockaddr_in servaddr;
@@ -54,8 +55,37 @@ int main()
     {
         printf("%s", &buffer[1]);
 
-        fgets(stdin_buffer, sizeof(stdin_buffer), stdin);
-        sscanf(stdin_buffer, "%s", buffer);
+        /* 名前を標準入力から受け取る */
+        for (;;)
+        {
+            /* 問題が発生した場合 */
+            if (fgets(buffer, MAX_NAME_LEN + 2, stdin) == NULL) {
+                printf("問題が発生したので，もう一度入力してください\n> ");
+            }
+            /* 何も入力しなかった場合 */
+            else if (buffer[0] == '\n') {
+                printf("名前には1文字以上必要です，もう一度入力してください\n> ");
+            }
+            /* MAX_NAME_LENよりも大きな文字列を入力した場合 */
+            else if (buffer[strlen(buffer) - 1] != '\n') {
+                printf("名前が長すぎます．もう一度入力してください\n> ");
+                /* stdinのバッファに溜まっている文字列をすべて吐き出す */
+                for (;;)
+                {
+                    fgets(buffer, BUFFER_SIZE, stdin);
+                    len = strlen(buffer);
+                    if (buffer[len - 1] == '\n')
+                        break;
+                }
+            }
+            else
+            {
+                len = strlen(buffer);
+                buffer[len - 1] = '\0';
+                break;
+            }
+        }
+
         exec_write(sock_fd, buffer, strlen(buffer) + 1);
 
         nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
