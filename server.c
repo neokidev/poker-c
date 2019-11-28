@@ -398,18 +398,19 @@ int main ()
                             pls[pl_idx].status = GAME_START_CHANGE_CARD;
                             break;
                         case GAME_START_CHANGE_CARD:
-                            strcpy(buffer, "交換するカードを選んでください\n0. 交換しない\n");
-                            j = 1;
+                            strcpy(buffer, "0交換するカードを選んでください\n0. 交換しない\n");
+                            j = 0;
                             for (i = 0; i < NUM_HAND_CARDS; i++)
                             {
                                 if (!pls[pl_idx].changed_card[i])
                                 {
+                                    j++;
                                     snprintf(buffer, sizeof(buffer), "%s%d. %s\n",
                                              buffer, j, card_to_str(pls[pl_idx].hand[i]));
-                                    j++;
                                 }
                             }
                             snprintf(buffer, sizeof(buffer), "%s> \0", buffer);
+                            buffer[0] = '0' + j;
 
                             nbytes += exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 

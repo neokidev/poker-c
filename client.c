@@ -56,6 +56,7 @@ int main()
         printf("%s", &buffer[1]);
 
         /* 名前を標準入力から受け取る */
+        buffer[MAX_NAME_LEN + 3] = '\0';
         for (;;)
         {
             /* 問題が発生した場合 */
@@ -187,11 +188,45 @@ int main()
                 exec_write(sock_fd, buffer, strlen(buffer) + 1);
 
                 nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
-                printf("%s", buffer);
+                flag = buffer[0];
+                printf("%s", &buffer[1]);
 
-                fgets(buffer, sizeof(buffer), stdin);
-                /* TODO: 例外処理を行う必要 */
-                snprintf(buffer, sizeof(buffer), "%c\0", buffer[0]);
+                /* 名前を標準入力から受け取る */
+                for (;;)
+                {
+                    /* 問題が発生した場合 */
+                    if (fgets(buffer, 3, stdin) == NULL) {
+                        printf("問題が発生したので，もう一度入力してください\n> ");
+                    }
+                    /* 何も入力しなかった場合 */
+                    else if (buffer[0] == '\n') {
+                        printf("何も入力していません，もう一度入力してください\n> ");
+                    }
+                    /* MAX_NAME_LENよりも大きな文字列を入力した場合 */
+                    else if (buffer[strlen(buffer) - 1] != '\n') {
+                        printf("入力が正しくありません．もう一度入力してください\n> ");
+                        /* stdinのバッファに溜まっている文字列をすべて吐き出す */
+                        for (;;)
+                        {
+                            fgets(buffer, BUFFER_SIZE, stdin);
+                            len = strlen(buffer);
+                            if (buffer[len - 1] == '\n')
+                                break;
+                        }
+                    }
+                    /* 選択肢に無い入力をした場合 */
+                    else if (!(buffer[0] >= '0' && buffer[0] <= flag))
+                    {
+                        printf("入力が正しくありません．もう一度入力してください\n> ");
+                    }
+                    else
+                    {
+                        len = strlen(buffer);
+                        buffer[len - 1] = '\0';
+                        break;
+                    }
+                }
+
                 exec_write(sock_fd, buffer, strlen(buffer) + 1);
 
                 nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
