@@ -117,6 +117,9 @@ int main ()
     bool   winners[MAX_NUM_PLAYERS];
 
 
+    /* rand()の初期値が実行の度に変わるようにする */
+    srand((unsigned)time(NULL));
+
     if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         perror("socket() failed");
