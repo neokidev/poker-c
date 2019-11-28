@@ -68,58 +68,48 @@ int main()
     }
 
     /* プレイヤー待機処理 */
-    print_flag = false;
-    for (;;)
+    strcpy(buffer, "0\0");
+    exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+    nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+    flag = buffer[0];
+
+    if (flag == '0')
     {
-        strcpy(buffer, "0\0");
-        exec_write(sock_fd, buffer, strlen(buffer) + 1);
-
+        printf("%s", &buffer[1]);
         nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
-        flag = buffer[0];
-
-        if (flag == '0')
-        {
-            if (!print_flag)
-            {
-                printf("%s", &buffer[1]);
-                print_flag = true;
-            }
-        }
-        else if (flag == '1')
-        {
-            printf("%s", &buffer[1]);
-            break;
-        }
-        else
-        {
-            perror("  implementation error (wait player)");
-            exit(1);
-        }
+        printf("%s", &buffer[1]);
+    }
+    else if (flag == '1')
+    {
+        printf("%s", &buffer[1]);
+    }
+    else
+    {
+        perror("  implementation error (wait player)");
+        exit(1);
     }
 
     /* ゲームの準備中の処理 */
-    for (;;)
+    strcpy(buffer, "0\0");
+    exec_write(sock_fd, buffer, strlen(buffer) + 1);
+
+    nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
+    flag = buffer[0];
+
+    if (flag == '0')
     {
-        strcpy(buffer, "0\0");
-        exec_write(sock_fd, buffer, strlen(buffer) + 1);
-
         nbytes = exec_read(sock_fd, buffer, sizeof(buffer));
-        flag = buffer[0];
-
-        if (flag == '0')
-        {
-            continue;
-        }
-        else if (flag == '1')
-        {
-            printf("%s", &buffer[1]);
-            break;
-        }
-        else
-        {
-            perror("  implementation error (game prepare)");
-            exit(1);
-        }
+        printf("%s", &buffer[1]);
+    }
+    else if (flag == '1')
+    {
+        printf("%s", &buffer[1]);
+    }
+    else
+    {
+        perror("  implementation error (game prepare)");
+        exit(1);
     }
 
     /* 手札確認処理 */

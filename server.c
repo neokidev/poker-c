@@ -276,17 +276,19 @@ int main ()
                             else
                             {
                                 strcpy(buffer, "1プレイヤーが揃いました！\n\0");
-                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
+                                for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                                {
+                                    exec_write(fds[i+1].fd, buffer, strlen(buffer) + 1);
 
-                                pls[pl_idx].status = GAME_PREPARE;
+                                    pls[i].status = GAME_PREPARE;
+                                }
                             }
                             break;
                         case GAME_PREPARE:
                             flag = false;
                             for (i = 0; i < MAX_NUM_PLAYERS; i++)
                             {
-                                if (pls[i].status == REGIST_NAME || pls[i].status == WAIT_PLAYER ||
-                                    pls[i].status == GAME_RESULT)
+                                if (pls[i].status == REGIST_NAME || pls[i].status == GAME_RESULT)
                                 {
                                     flag = true;
                                     break;
@@ -329,9 +331,13 @@ int main ()
                                 }
 
                                 strcpy(buffer, "1ゲームを開始します！\n\0");
-                                exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
-                                pls[pl_idx].status = GAME_LOOK_FIRST_HAND;
+                                for (i = 0; i < MAX_NUM_PLAYERS; i++)
+                                {
+                                    exec_write(fds[i+1].fd, buffer, strlen(buffer) + 1);
+
+                                    pls[i].status = GAME_LOOK_FIRST_HAND;
+                                }
                             }
                             break;
                         case GAME_LOOK_FIRST_HAND:
