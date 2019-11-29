@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <sys/poll.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -66,8 +65,6 @@ void shuffle_deck(struct deck *d);
 void print_deck(struct deck *d);
 int exec_read(int sock_fd, char *buffer, unsigned long buffer_size);
 int exec_write(int sock_fd, char *buffer, size_t len);
-
-// judge_poker
 int compareInt_asc(const void* a, const void* b);
 int compareInt_desc(const void* a, const void* b);
 
@@ -94,15 +91,11 @@ int main ()
 {
     int    n, nbytes;
     bool   flag;
-    int    rc, on = 1;
-    int    len;
     int    listen_fd = -1, conn_fd = -1;
-    int    end_server = false, compress_array = false;
-    int    close_conn;
+    int    end_server = false;
     char   buffer[BUFFER_SIZE];
     struct sockaddr_in server_addr;
     struct sockaddr_in client_addr;
-    char   *addr;
     socklen_t addrlen;
     struct pollfd fds[MAX_NUM_PLAYERS + 1];
     int    fd_idx;
@@ -111,7 +104,6 @@ int main ()
 
     struct player pls[MAX_NUM_PLAYERS];
     int    pl_idx;
-    struct player pl_in_turn, pl_next_turn, pl_dealer;
     struct player *pl_in_turn_p, *pl_next_turn_p, *pl_dealer_p;
     struct deck deck1;
     bool   winners[MAX_NUM_PLAYERS];
@@ -123,20 +115,6 @@ int main ()
     if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         perror("socket() failed");
-        exit(-1);
-    }
-
-    if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0)
-    {
-        perror("setsockopt() failed");
-        close(listen_fd);
-        exit(-1);
-    }
-
-    if (ioctl(listen_fd, FIONBIO, (char *)&on) < 0)
-    {
-        perror("ioctl() failed");
-        close(listen_fd);
         exit(-1);
     }
 
@@ -164,19 +142,12 @@ int main ()
     fds[0].fd = listen_fd;
     fds[0].events = POLLIN;
 
+    printf("サーバが起動しました\n");
     while (end_server == false)
     {
-        // printf("Waiting on poll()...\n");
-
         if ((n = poll(fds, nfds, -1)) < 0)
         {
             perror("  poll() failed");
-            break;
-        }
-
-        if (n == 0)
-        {
-            printf("  poll() timed out.  End program.\n");
             break;
         }
 
@@ -185,14 +156,6 @@ int main ()
         {
             if (fds[fd_idx].revents == 0)
                 continue;
-
-            /*
-            if (fds[fd_idx].revents != POLLIN)
-            {
-                printf("  Error! revents = %d\n", fds[fd_idx].revents);
-                end_server = true;
-                break;
-            }*/
 
             if (fds[fd_idx].revents & POLLIN)
             {
@@ -235,7 +198,7 @@ int main ()
                     }
                     else
                     {
-                        snprintf(buffer, sizeof(buffer), "1参加人数の上限を超えたため，参加できませんでした\n\0");
+                        snprintf(buffer, sizeof(buffer), "1参加人数の上限を超えたため，参加できませんでした\n");
                         nbytes = exec_write(conn_fd, buffer, strlen(buffer) + 1);
                         printf("nbytes: %d\n", nbytes);
                         close(conn_fd);
@@ -247,15 +210,13 @@ int main ()
 
                     pl_idx = fd_idx - 1;
 
-                    // close_conn = false;
                     nbytes = exec_read(fds[fd_idx].fd, buffer, sizeof(buffer));
-                    // printf("  %d bytes received\n", nbytes);
 
                     switch (pls[pl_idx].status)
                     {
                         case REGIST_NAME:
                             strncpy(pls[pl_idx].name, buffer, strlen(buffer) + 1);
-                            snprintf(buffer, sizeof(buffer), "ポーカーの世界へようこそ！%s さん！\n\0", pls[pl_idx].name);
+                            snprintf(buffer, sizeof(buffer), "ポーカーの世界へようこそ！%s さん！\n", pls[pl_idx].name);
                             exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
                             pls[pl_idx].status = WAIT_PLAYER;
@@ -312,17 +273,13 @@ int main ()
 
                                     init_deck(&deck1);
                                     shuffle_deck(&deck1);
-                                    // printf("deck: ");
-                                    // print_deck(&deck1);
 
                                     for (i = 0; i < MAX_NUM_PLAYERS; i++)
                                     {
-                                        // printf("player %d hand: ", i + 1);
                                         draw_cards(pls[i].hand, &deck1);
 
                                         for (j = 0; j < NUM_HAND_CARDS; j++)
                                         {
-                                            // printf("%d ", pls[i].hand[j]);
                                             pls[i].changed_card[j] = false;
                                         }
                                         // printf("\n");
@@ -350,7 +307,7 @@ int main ()
 
                             if (!flag)
                             {
-                                snprintf(buffer, sizeof(buffer), "山札からカードを5枚引きます\n%s\n\0", hand_to_str(pls[pl_idx].hand));
+                                snprintf(buffer, sizeof(buffer), "山札からカードを5枚引きます\n%s\n", hand_to_str(pls[pl_idx].hand));
                                 exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
                                 pls[pl_idx].status = GAME_BEGINNING_OF_TURN;
@@ -386,7 +343,6 @@ int main ()
                                 }
                                 else
                                 {
-                                    sleep(1);
                                     strcpy(buffer, "2\n\0");
                                     exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
@@ -412,7 +368,7 @@ int main ()
                                              buffer, j, card_to_str(pls[pl_idx].hand[i]));
                                 }
                             }
-                            snprintf(buffer, sizeof(buffer), "%s> \0", buffer);
+                            snprintf(buffer, sizeof(buffer), "%s> ", buffer);
                             buffer[0] = '0' + j;
 
                             nbytes += exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
@@ -423,7 +379,7 @@ int main ()
                             if (buffer[0] == '0')
                             {
                                 /* カードの交換を終了する */
-                                snprintf(buffer, sizeof(buffer), "1手札の交換を終了します\n%s\n\0", hand_to_str(pls[pl_idx].hand));
+                                snprintf(buffer, sizeof(buffer), "1手札の交換を終了します\n%s\n", hand_to_str(pls[pl_idx].hand));
                                 exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
 
                                 pls[pl_idx].status = GAME_END_OF_TURN;
@@ -440,7 +396,7 @@ int main ()
                                     if (buffer[0] == '0' + j)
                                     {
                                         change_card(&pls[pl_idx], &deck1, i);
-                                        snprintf(buffer, sizeof(buffer), "0%d番目のカードを交換します\n\0", i + 1);
+                                        snprintf(buffer, sizeof(buffer), "0%d番目のカードを交換します\n", i + 1);
                                         exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
                                         break;
                                     }
@@ -453,7 +409,7 @@ int main ()
                             if (pl_in_turn_p->status == GAME_BEGINNING_OF_TURN || pl_in_turn_p->status == GAME_MY_TURN ||
                                 pl_in_turn_p->status == GAME_START_CHANGE_CARD || pl_in_turn_p->status == GAME_SELECT_CHANGE_CARD)
                             {
-                                snprintf(buffer, sizeof(buffer), "0%s さんの番です\n\0", pl_in_turn_p->name);
+                                snprintf(buffer, sizeof(buffer), "0%s さんの番です\n", pl_in_turn_p->name);
                                 exec_write(fds[fd_idx].fd, buffer, strlen(buffer) + 1);
                             }
                             else if (pl_in_turn_p->status == GAME_END_OF_TURN)
@@ -529,10 +485,8 @@ int main ()
                             else
                             {
                                 bool winners_player[MAX_NUM_PLAYERS];
-                                judge_winners(&pls, winners_player);
-                                
-                                // strcpy(buffer, "1結果を表示します\nAの勝ち\nゲームは終了しました\n\0");
-                                
+                                judge_winners(pls, winners_player);
+
                                 for (i = 0; i < MAX_NUM_PLAYERS; i++)
                                 {
                                     if (winners_player[i] == true)
@@ -558,44 +512,11 @@ int main ()
                         printf("%d ", pls[i].status);
                     }
                     printf("\n");
-
-                    /*
-                    if (close_conn)
-                    {
-                        close(fds[fd_idx].fd);
-                        fds[fd_idx].fd = -1;
-                        compress_array = true;
-                    }
-                    */
                 }
             }
         }
-        /*
-        if (compress_array)
-        {
-            compress_array = false;
-            for (i = 0; i < nfds; i++)
-            {
-                if (fds[fd_idx].fd == -1)
-                {
-                    for(j = i; j < nfds; j++)
-                    {
-                        fds[j].fd = fds[j+1].fd;
-                    }
-                    nfds--;
-                }
-            }
-        }
-        */
-       sleep(1);
+        usleep(100000);
     }
-
-    for (i = 0; i < nfds; i++)
-    {
-        if(fds[fd_idx].fd >= 0)
-        close(fds[fd_idx].fd);
-    }
-    return 0;
 }
 
 
@@ -610,10 +531,9 @@ bool is_same_player(struct player pl1, struct player pl2)
 
 char *hand_to_str(int hand[])
 {
-    int i, maxlen = 19, str_idx = 0;
+    int i, str_idx = 0;
     int number;
     char suit;
-    // char hand_str[maxlen];
 
     for (i = 0; i < NUM_HAND_CARDS; i++)
     {
@@ -667,9 +587,8 @@ char *hand_to_str(int hand[])
 
 char *card_to_str(int card)
 {
-    int i, maxlen = 4, str_idx = 1;
+    int str_idx = 1;
     int n;
-    // char card_str[maxlen];
 
     card_str[0] = card_suit(card);
 
@@ -710,17 +629,23 @@ char *card_to_str(int card)
 
 char card_suit(int card)
 {
+    char suit;
     switch (card / 13)
     {
         case 0:
-            return 's';
+            suit = 's';
+            break;
         case 1:
-            return 'h';
+            suit = 'h';
+            break;
         case 2:
-            return 'd';
+            suit = 'd';
+            break;
         case 3:
-            return 'c';
+            suit = 'c';
+            break;
     }
+    return suit;
 }
 
 
@@ -822,7 +747,7 @@ int exec_write(int fd, char *buffer, size_t len)
     return nbytes;
 }
 
-// judge_poker
+
 int compareInt_asc(const void* a, const void* b)
 {
     return *(int*)a - *(int*)b;
@@ -951,7 +876,6 @@ int judge_hand(int hand[])
 void judge_winners(struct player *pls, bool *winners_player)
 {
     int player_rank[MAX_NUM_PLAYERS] = {0};
-    int player_hands[MAX_NUM_PLAYERS] = {0};
     for (int i = 0; i < MAX_NUM_PLAYERS; i++)
     {
         player_rank[i] = judge_hand(pls[i].hand);

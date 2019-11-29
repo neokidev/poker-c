@@ -22,7 +22,7 @@ int main()
 {
     int    sock_fd, nbytes, len;
     char   flag, print_flag, gamed_over_flag;
-    char   buffer[BUFFER_SIZE], stdin_buffer[BUFFER_SIZE];
+    char   buffer[BUFFER_SIZE];
     struct sockaddr_in servaddr;
     if ((sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
@@ -337,14 +337,6 @@ int main()
             break;
         }
     }
-
-    /* ちょっとした時間稼ぎ */
-    for (int j = 0; j < 100000; j++) {
-        for (int k = 0; k < 10000; k++) {
-            int l = 0;
-        }
-    }
-    printf("Done.\n");
 }
 
 
